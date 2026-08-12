@@ -10,4 +10,20 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+if (process.env.NODE_ENV === "production") {
+  transporter
+    .verify()
+    .then(() => {
+      console.log("✅ Brevo SMTP connection verified");
+    })
+    .catch((error) => {
+      console.error(
+        "❌ Brevo SMTP verification failed:",
+        error instanceof Error
+          ? error.message
+          : error
+      );
+    });
+}
+
 export default transporter;
