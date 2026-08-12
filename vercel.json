@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/internal/opportunities/sync/aicte",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
