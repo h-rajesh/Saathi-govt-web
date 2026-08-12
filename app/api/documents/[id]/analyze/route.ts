@@ -101,23 +101,22 @@ export async function POST(
       analysisId: savedAnalysis.id,
     });
 
-  } catch (error) {
-
-    console.error(
-      "Resume Analysis API Error:",
-      error
-    );
+  } catch (error: any) {
+    console.error("Resume Analysis API Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to analyze resume.";
+    const isClientError =
+      errorMessage.includes("not found") ||
+      errorMessage.includes("Only PDF") ||
+      errorMessage.includes("Unable to extract") ||
+      errorMessage.includes("re-upload");
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to analyze resume.",
+        message: errorMessage,
       },
       {
-        status: 500,
+        status: isClientError ? 400 : 500,
       }
     );
   }
