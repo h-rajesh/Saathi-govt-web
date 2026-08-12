@@ -58,6 +58,8 @@ class RegisterService {
           OTPPurpose.EMAIL_VERIFICATION
         );
 
+        console.log("🔑 [OTP GENERATED] Email:", normalizedEmail, "OTP:", otp);
+
         await sendEmail({
           to: normalizedEmail,
           subject: "Verify your Saathi account",
@@ -104,6 +106,8 @@ class RegisterService {
         normalizedEmail,
         OTPPurpose.EMAIL_VERIFICATION
       );
+
+    console.log("🔑 [OTP GENERATED] Email:", normalizedEmail, "OTP:", otp);
 
     // ------------------------
     // Send Email

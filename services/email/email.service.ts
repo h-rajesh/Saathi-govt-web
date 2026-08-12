@@ -26,16 +26,12 @@ export async function sendEmail({
     return info;
   } catch (error) {
     console.error(
-      "❌ Email Error:",
+      "❌ Email delivery error (bypassing throw to prevent signup crash):",
       error instanceof Error
         ? error.message
         : error
     );
 
-    throw new Error(
-      error instanceof Error
-        ? `Email delivery failed: ${error.message}`
-        : "Email delivery failed."
-    );
+    return null;
   }
 }
