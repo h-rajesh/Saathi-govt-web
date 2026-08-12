@@ -1,46 +1,74 @@
 import { randomUUID } from "crypto";
-import { supabaseStorage } from "./supabase-storage";
+import { getSupabaseStorageClient } from "./supabase-storage";
 import fs from "fs/promises";
 import path from "path";
 
 class StorageService {
   async uploadDocument(file: File): Promise<string> {
-    const extension = file.name.split(".").pop() || "pdf";
+    const extension = file.name.split(".").pop()?.toLowerCase() || "pdf";
     const fileName = `${randomUUID()}.${extension}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    try {
-      const { data, error } = await supabaseStorage.storage
-        .from("documents")
-        .upload(fileName, buffer, {
-          contentType: file.type,
-          upsert: true,
-        });
+    const supabase = getSupabaseStorageClient();
 
-      if (error) {
-        console.warn("⚠️ Supabase storage upload warning, saving locally:", error.message);
-        return await this.uploadLocal(fileName, buffer);
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.storage
+          .from("documents")
+          .upload(fileName, buffer, {
+            contentType: file.type || "application/octet-stream",
+            upsert: true,
+          });
+
+        if (!error && data?.path) {
+          return data.path;
+        }
+
+        console.warn("⚠️ Supabase storage upload warning, saving locally:", error?.message);
+      } catch (err: any) {
+        console.warn("⚠️ Supabase storage error, saving locally:", err?.message || err);
       }
-
-      return data.path;
-    } catch (err: any) {
-      console.warn("⚠️ Supabase storage error, saving locally:", err?.message || err);
-      return await this.uploadLocal(fileName, buffer);
+    } else {
+      console.warn("⚠️ Supabase storage credentials missing, attempting local storage fallback.");
     }
+
+    return await this.uploadLocal(fileName, buffer);
   }
 
   private async uploadLocal(fileName: string, buffer: Buffer): Promise<string> {
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    await fs.mkdir(uploadDir, { recursive: true });
-    const filePath = path.join(uploadDir, fileName);
-    await fs.writeFile(filePath, buffer);
-    return `/uploads/${fileName}`;
+    const isServerless = !!process.env.VERCEL || process.env.NODE_ENV === "production";
+
+    if (isServerless) {
+      try {
+        const tmpDir = path.join("/tmp", "uploads");
+        await fs.mkdir(tmpDir, { recursive: true });
+        const filePath = path.join(tmpDir, fileName);
+        await fs.writeFile(filePath, buffer);
+        return `/uploads/${fileName}`;
+      } catch (err: any) {
+        throw new Error(
+          "Storage service unavailable: Supabase storage credentials (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) are not configured."
+        );
+      }
+    }
+
+    try {
+      const uploadDir = path.join(process.cwd(), "public", "uploads");
+      await fs.mkdir(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, fileName);
+      await fs.writeFile(filePath, buffer);
+      return `/uploads/${fileName}`;
+    } catch (err: any) {
+      throw new Error(`Failed to write file to local disk: ${err?.message || "Storage error"}`);
+    }
   }
 
   async deleteDocument(pathStr: string) {
     if (pathStr.startsWith("/uploads/")) {
       try {
-        const localPath = path.join(process.cwd(), "public", pathStr);
+        const isServerless = !!process.env.VERCEL || process.env.NODE_ENV === "production";
+        const basePath = isServerless ? "/tmp" : path.join(process.cwd(), "public");
+        const localPath = path.join(basePath, pathStr);
         await fs.unlink(localPath);
       } catch (err) {
         console.warn("Failed to delete local file:", err);
@@ -48,8 +76,11 @@ class StorageService {
       return;
     }
 
+    const supabase = getSupabaseStorageClient();
+    if (!supabase) return;
+
     try {
-      const { error } = await supabaseStorage.storage
+      const { error } = await supabase.storage
         .from("documents")
         .remove([pathStr]);
 
@@ -70,8 +101,11 @@ class StorageService {
       return pathStr;
     }
 
+    const supabase = getSupabaseStorageClient();
+    if (!supabase) return pathStr;
+
     try {
-      const { data, error } = await supabaseStorage.storage
+      const { data, error } = await supabase.storage
         .from("documents")
         .createSignedUrl(pathStr, 60 * 60);
 
@@ -87,7 +121,9 @@ class StorageService {
 
   async getFileBuffer(pathStr: string): Promise<Buffer> {
     if (pathStr.startsWith("/uploads/")) {
-      const localPath = path.join(process.cwd(), "public", pathStr);
+      const isServerless = !!process.env.VERCEL || process.env.NODE_ENV === "production";
+      const basePath = isServerless ? "/tmp" : path.join(process.cwd(), "public");
+      const localPath = path.join(basePath, pathStr);
       return await fs.readFile(localPath);
     }
 
@@ -98,23 +134,27 @@ class StorageService {
       return Buffer.from(arrayBuffer);
     }
 
-    try {
-      const { data, error } = await supabaseStorage.storage
-        .from("documents")
-        .download(pathStr);
+    const supabase = getSupabaseStorageClient();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.storage
+          .from("documents")
+          .download(pathStr);
 
-      if (error || !data) {
-        throw new Error(error?.message || "Failed to download file from Supabase");
+        if (!error && data) {
+          const arrayBuffer = await data.arrayBuffer();
+          return Buffer.from(arrayBuffer);
+        }
+      } catch (err: any) {
+        console.warn("⚠️ Supabase download error, checking local fallback:", err?.message || err);
       }
-
-      const arrayBuffer = await data.arrayBuffer();
-      return Buffer.from(arrayBuffer);
-    } catch (err: any) {
-      console.warn("⚠️ Supabase download error, checking local fallback:", err?.message || err);
-      const localPath = path.join(process.cwd(), "public", pathStr.startsWith("/") ? pathStr : `/uploads/${pathStr}`);
-      return await fs.readFile(localPath);
     }
+
+    const isServerless = !!process.env.VERCEL || process.env.NODE_ENV === "production";
+    const basePath = isServerless ? "/tmp" : path.join(process.cwd(), "public");
+    const localPath = path.join(basePath, pathStr.startsWith("/") ? pathStr : `/uploads/${pathStr}`);
+    return await fs.readFile(localPath);
   }
 }
 
-export default new StorageService();
+export default new StorageService();

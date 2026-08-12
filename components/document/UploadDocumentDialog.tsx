@@ -34,28 +34,26 @@ export default function UploadDocumentDialog() {
 
       const form = new FormData();
       const allowedTypes = [
-    "application/pdf",
-    "image/png",
-    "image/jpeg",
-];
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/pjpeg",
+      ];
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const isAllowed = allowedTypes.includes(file.type.toLowerCase()) || ["pdf", "png", "jpg", "jpeg"].includes(ext);
 
-if (!allowedTypes.includes(file.type)) {
+      if (!isAllowed) {
+        toast.error("Only PDF, PNG, and JPG/JPEG files are allowed.");
+        setLoading(false);
+        return;
+      }
 
-    toast.error(
-        "Only PDF, PNG and JPG files are allowed."
-    );
-
-    return;
-}
-
-if (file.size > 5 * 1024 * 1024) {
-
-    toast.error(
-        "Maximum file size is 5MB."
-    );
-
-    return;
-}
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Maximum file size is 5MB.");
+        setLoading(false);
+        return;
+      }
 
       form.append("file", file);
 

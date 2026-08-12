@@ -35,13 +35,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+    const allowedMimeTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/pjpeg",
+    ];
+    const allowedExtensions = ["pdf", "png", "jpg", "jpeg"];
 
-    if (!allowedTypes.includes(file.type)) {
+    const fileExt = file.name.split(".").pop()?.toLowerCase() || "";
+    const mimeType = file.type?.toLowerCase();
+
+    const isMimeValid = mimeType && allowedMimeTypes.includes(mimeType);
+    const isExtValid = allowedExtensions.includes(fileExt);
+
+    if (!isMimeValid && !isExtValid) {
       return NextResponse.json(
         {
           success: false,
-          message: "Unsupported file type. Allowed: PDF, PNG, JPG",
+          message: "Unsupported file type. Allowed: PDF, PNG, JPG, JPEG",
         },
         {
           status: 400,
@@ -78,7 +91,7 @@ export async function POST(request: Request) {
       fileUrl: storagePath,
       fileName: file.name,
       fileSize: file.size,
-      mimeType: file.type,
+      mimeType: file.type || `image/${fileExt}` || "application/octet-stream",
     });
 
     return NextResponse.json({
@@ -86,15 +99,21 @@ export async function POST(request: Request) {
       message: "Document uploaded successfully.",
       document,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Document upload error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Upload failed.";
+    const isValidationError =
+      errorMessage.includes("No file") ||
+      errorMessage.includes("Unsupported") ||
+      errorMessage.includes("Maximum upload size");
+
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Upload failed.",
+        message: errorMessage,
       },
       {
-        status: 400,
+        status: isValidationError ? 400 : 500,
       }
     );
   }
