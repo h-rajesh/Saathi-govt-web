@@ -49,8 +49,8 @@ export default function UploadDocumentDialog() {
         return;
       }
 
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Maximum file size is 5MB.");
+      if (file.size > 4.2 * 1024 * 1024) {
+        toast.error("Maximum file size is 4.2MB.");
         setLoading(false);
         return;
       }

@@ -4,8 +4,28 @@ import fs from "fs/promises";
 import path from "path";
 
 class StorageService {
+  private async ensureSupabaseBucket(supabase: any): Promise<boolean> {
+    try {
+      const { data: buckets, error } = await supabase.storage.listBuckets();
+      if (!error && buckets) {
+        const exists = buckets.some((b: any) => b.name === "documents");
+        if (!exists) {
+          await supabase.storage.createBucket("documents", { public: true });
+        }
+        return true;
+      }
+    } catch (e) {
+      console.warn("Could not check/create Supabase bucket:", e);
+    }
+    return false;
+  }
+
   async uploadDocument(file: File): Promise<string> {
-    const extension = file.name.split(".").pop()?.toLowerCase() || "pdf";
+    if (!file || typeof file.arrayBuffer !== "function") {
+      throw new Error("Invalid file object provided for upload.");
+    }
+
+    const extension = (file.name || "document.pdf").split(".").pop()?.toLowerCase() || "pdf";
     const fileName = `${randomUUID()}.${extension}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -13,6 +33,8 @@ class StorageService {
 
     if (supabase) {
       try {
+        await this.ensureSupabaseBucket(supabase);
+
         const { data, error } = await supabase.storage
           .from("documents")
           .upload(fileName, buffer, {

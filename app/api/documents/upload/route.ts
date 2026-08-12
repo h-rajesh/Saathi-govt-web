@@ -21,19 +21,22 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const rawFile = formData.get("file");
 
-    if (!file) {
+    if (!rawFile || typeof rawFile === "string" || typeof (rawFile as any).arrayBuffer !== "function") {
       return NextResponse.json(
         {
           success: false,
-          message: "No file uploaded.",
+          message: "No valid file provided in request.",
         },
         {
           status: 400,
         }
       );
     }
+
+    const file = rawFile as File;
+    const fileName = file.name || "document.pdf";
 
     const allowedMimeTypes = [
       "application/pdf",
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
     ];
     const allowedExtensions = ["pdf", "png", "jpg", "jpeg"];
 
-    const fileExt = file.name.split(".").pop()?.toLowerCase() || "";
+    const fileExt = fileName.split(".").pop()?.toLowerCase() || "";
     const mimeType = file.type?.toLowerCase();
 
     const isMimeValid = mimeType && allowedMimeTypes.includes(mimeType);
@@ -62,11 +65,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    const MAX_FILE_SIZE = 4.2 * 1024 * 1024; // 4.2 MB (Vercel payload limit)
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
           success: false,
-          message: "Maximum upload size is 5MB.",
+          message: "Maximum upload size is 4.2MB.",
         },
         {
           status: 400,
@@ -75,7 +79,7 @@ export async function POST(request: Request) {
     }
 
     const rawTitle = formData.get("title") as string | null;
-    const title = rawTitle && rawTitle.trim().length > 0 ? rawTitle.trim() : file.name;
+    const title = rawTitle && rawTitle.trim().length > 0 ? rawTitle.trim() : fileName;
 
     const rawType = formData.get("type") as DocumentType | null;
     const type = rawType && Object.values(DocumentType).includes(rawType)
@@ -89,7 +93,7 @@ export async function POST(request: Request) {
       title,
       type,
       fileUrl: storagePath,
-      fileName: file.name,
+      fileName,
       fileSize: file.size,
       mimeType: file.type || `image/${fileExt}` || "application/octet-stream",
     });
@@ -104,8 +108,10 @@ export async function POST(request: Request) {
     const errorMessage = error instanceof Error ? error.message : "Upload failed.";
     const isValidationError =
       errorMessage.includes("No file") ||
+      errorMessage.includes("No valid") ||
       errorMessage.includes("Unsupported") ||
-      errorMessage.includes("Maximum upload size");
+      errorMessage.includes("Maximum upload size") ||
+      errorMessage.includes("Invalid file");
 
     return NextResponse.json(
       {
