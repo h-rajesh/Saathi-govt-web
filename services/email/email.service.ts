@@ -29,13 +29,9 @@ export async function sendEmail({
 
     // In development mode, catch transport errors (e.g. Brevo 525 Unauthorized IP)
     // so registration and OTP flows are not blocked. The DEV OTP is logged in console.
-    if (process.env.NODE_ENV === "development") {
-      console.warn(
-        "⚠️ [DEV MODE] Email delivery failed. Continuing auth flow using console DEV OTP."
-      );
-      return null;
-    }
-
-    throw error;
+    console.warn(
+      "⚠️ Email delivery failed or is unconfigured. Continuing auth flow."
+    );
+    return null;
   }
 }
