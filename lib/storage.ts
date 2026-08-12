@@ -146,14 +146,26 @@ class StorageService {
       const isServerless = !!process.env.VERCEL || process.env.NODE_ENV === "production";
       const basePath = isServerless ? "/tmp" : path.join(process.cwd(), "public");
       const localPath = path.join(basePath, pathStr);
-      return await fs.readFile(localPath);
+      try {
+        return await fs.readFile(localPath);
+      } catch (err) {
+        throw new Error(
+          "Document file not found on storage server. Please re-upload the document."
+        );
+      }
     }
 
     if (pathStr.startsWith("http://") || pathStr.startsWith("https://")) {
-      const res = await fetch(pathStr);
-      if (!res.ok) throw new Error("Failed to fetch document file.");
-      const arrayBuffer = await res.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      try {
+        const res = await fetch(pathStr);
+        if (!res.ok) throw new Error("Failed to fetch document file.");
+        const arrayBuffer = await res.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+      } catch {
+        throw new Error(
+          "Document file could not be fetched. Please re-upload the document."
+        );
+      }
     }
 
     const supabase = getSupabaseStorageClient();
@@ -175,7 +187,13 @@ class StorageService {
     const isServerless = !!process.env.VERCEL || process.env.NODE_ENV === "production";
     const basePath = isServerless ? "/tmp" : path.join(process.cwd(), "public");
     const localPath = path.join(basePath, pathStr.startsWith("/") ? pathStr : `/uploads/${pathStr}`);
-    return await fs.readFile(localPath);
+    try {
+      return await fs.readFile(localPath);
+    } catch {
+      throw new Error(
+        "Document file not found on storage server. Please re-upload the document."
+      );
+    }
   }
 }
 

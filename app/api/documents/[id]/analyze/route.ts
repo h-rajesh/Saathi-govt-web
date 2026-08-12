@@ -104,11 +104,14 @@ export async function POST(
   } catch (error: any) {
     console.error("Resume Analysis API Error:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to analyze resume.";
+    const lowerMessage = errorMessage.toLowerCase();
     const isClientError =
-      errorMessage.includes("not found") ||
-      errorMessage.includes("Only PDF") ||
-      errorMessage.includes("Unable to extract") ||
-      errorMessage.includes("re-upload");
+      lowerMessage.includes("not found") ||
+      lowerMessage.includes("no such file") ||
+      lowerMessage.includes("enoent") ||
+      lowerMessage.includes("only pdf") ||
+      lowerMessage.includes("unable to extract") ||
+      lowerMessage.includes("re-upload");
 
     return NextResponse.json(
       {
